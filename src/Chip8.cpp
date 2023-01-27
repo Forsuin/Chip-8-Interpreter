@@ -91,8 +91,8 @@ void Chip8::tick() {
                 }
                 //0x00EE
                 case 0x000E: {
-                    NOT_IMPLEMENTED;
-                    break;
+                    stackPointer--;
+                    PC = stack[stackPointer];
                 }
                 default:{
                     std::cout << "Unknown Opcode: " << std::hex << std::uppercase << opcode << std::endl;
@@ -108,7 +108,31 @@ void Chip8::tick() {
         }
         //0x2NNN
         case 0x2000: {
-            NOT_IMPLEMENTED;
+            stack[stackPointer] = PC;
+            stackPointer++;
+
+            PC = NNN;
+            break;
+        }
+        //0x3XNN
+        case 0x3000: {
+            if(v[X] == NN){
+                PC += 2;
+            }
+            break;
+        }
+        //0x4XNN
+        case 0x4000: {
+            if(v[X] != NN){
+                PC += 2;
+            }
+            break;
+        }
+        //0x5XY0
+        case 0x5000: {
+            if(v[X] == v[Y]){
+                PC += 2;
+            }
             break;
         }
         //0x6XNN
@@ -121,9 +145,114 @@ void Chip8::tick() {
             v[X] += NN;
             break;
         }
+        //0x8XY_
+        case 0x8000: {
+            switch (N) {
+                //0x8XY0
+                case 0x0000: {
+                    v[X] = v[Y];
+                    break;
+                }
+                //0x8XY1
+                case 0x0001: {
+                    v[X] |= v[Y];
+                    break;
+                }
+                //0x8XY2
+                case 0x0002: {
+                    v[X] &= v[Y];
+                    break;
+                }
+                //0x8XY3
+                case 0x0003: {
+                    v[X] ^= v[Y];
+                    break;
+                }
+                //0x8XY4
+                case 0x0004: {
+                    uint16_t sum = v[X] + v[Y];
+
+                    if(sum > 255){
+                        v[0xF] = 1;
+                    }
+                    else {
+                        v[0xF] = 0;
+                    }
+
+                    v[X] = sum & 0xFF;
+
+                    break;
+                }
+                //0x8XY5
+                case 0x0005: {
+
+                    if(v[X] - v[Y] < 0){
+                        v[0xF] = 1;
+                    }
+                    else {
+                        v[0xF] = 0;
+                    }
+
+                    v[X] -= v[Y];
+
+                    break;
+                }
+                //0x8XY6
+                case 0x0006: {
+
+                    v[0xF] = v[X] & 0x1;
+
+                    v[X] >>= 1;
+
+                    break;
+                }
+                //0x8XY7
+                case 0x0007: {
+                    if(v[Y] - v[X] < 0){
+                        v[0xF] = 1;
+                    }
+                    else {
+                        v[0xF] = 0;
+                    }
+
+                    v[Y] -= v[X];
+                    break;
+                }
+                //0x8XYE
+                case 0x000E: {
+                    v[0xF] = v[X] & 0x80;
+
+                    v[X] <<= 1;
+
+                    break;
+                }
+                default: {
+                    NOT_IMPLEMENTED;
+                    break;
+                }
+            }
+            break;
+        }
+        //9XY0
+        case 0x9000: {
+            if(v[X] != v[Y]){
+                PC += 2;
+            }
+            break;
+        }
         //0xANNN
         case 0xA000: {
             index = NNN;
+            break;
+        }
+        //0xBNNN
+        case 0xB000: {
+            PC = NNN + v[0];
+            break;
+        }
+        //0xCXNN
+        case 0xC000: {
+            v[X] = randByte(randGen) & NN;
             break;
         }
         //0xDXYN
@@ -147,6 +276,104 @@ void Chip8::tick() {
             }
 
             drawFlag = true;
+            break;
+        }
+        //0xEX__
+        case 0xE000: {
+            switch (N) {
+                //0xEX9E
+                case 0x000E: {
+                    if(keypad[v[X]]){
+                        PC += 2;
+                    }
+                    break;
+                }
+                //0xEXA1
+                case 0x0001: {
+                    if(!keypad[v[X]]){
+                        PC += 2;
+                    }
+                    break;
+                }
+                default: {
+                    NOT_IMPLEMENTED;
+                    break;
+                }
+            }
+            break;
+        }
+        //0xFX__
+        case 0xF000: {
+            switch (NN) {
+                //0xFX07
+                case 0x0007: {
+                    v[X] = delayTimer;
+                    break;
+                }
+                //0xFX0A
+                case 0x000A: {
+                    for(int k = 0; k < 16; k++){
+                        if(keypad[k]){
+                            v[X] = k;
+                            break;
+                        }
+                    }
+
+                    PC -= 2;
+                    break;
+                }
+                //0xFX15
+                case 0x0015: {
+                    delayTimer = v[X];
+                    break;
+                }
+                //0xFX18
+                case 0x0018: {
+                    soundTimer = v[X];
+                    break;
+                }
+                //0xFX1E
+                case 0x001E: {
+                    index += v[X];
+                    break;
+                }
+                //0xFX29
+                case 0x0029: {
+                    index = FONT_START_ADDRESS + (v[X] * 5);
+                    break;
+                }
+                //0xFX33
+                case 0x0033: {
+                    uint8_t value = v[X];
+
+                    for(int i = 2; i >= 0; i--){
+                        memory[index + i] = value % 10;
+                        value /= 10;
+                    }
+
+                    break;
+                }
+                //0xFX55
+                case 0x0055: {
+                    for(int i = 0; i < X; i++){
+                        memory[index + i] = v[i];
+                    }
+
+                    break;
+                }
+                //0xFX65
+                case 0x0065: {
+                    for(int i = 0; i < X; i++){
+                        v[i] = memory[index + 1];
+                    }
+
+                    break;
+                }
+                default: {
+                    NOT_IMPLEMENTED;
+                    break;
+                }
+            }
             break;
         }
     }
